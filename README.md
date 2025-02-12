@@ -1,2 +1,2 @@
 # labml.ai
-https://nn.labml.ai/
+Daily Learn.
