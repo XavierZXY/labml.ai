@@ -35,18 +35,41 @@ class TransformerXLLayer(nn.Module):
         self.norm_ff = nn.LayerNorm([d_model])
 
     def forward(
-        self, x: torch.Tensor, mem: Optional[torch.Tensor], mask: torch.Tensor
+        self,
+        *,
+        x: torch.Tensor,  # [seq_len, batch_size, d_model]
+        mem: Optional[
+            torch.Tensor
+        ],  # a tensor of the pask token level feature, [mem_len, batch_size, d_model]
+        mask: torch.Tensor,
     ):
+        # noramlize the vectors before doing self attention
         z = self.norm_self_attn(x)
         if mem is not None:
             mem = self.norm_self_attn(mem)
             m_z = torch.cat([mem, z], dim=0)
         else:
             m_z = z
-
         self_attn = self.self_attn(z, m_z, m_z, mask)
         x = x + self.dropout(self_attn)
         z = self.norm_ff(x)
         ff = self.feed_forward(z)
         x = x + self.dropout(ff)
         return x
+
+
+class TransformerXL(Module):
+    def __init__(self, layer: TransformerXLLayer, num_layers: int):
+        super().__init__()
+        self.layers = clone_module_list(layer, num_layers)
+        self.norm = nn.LayerNorm([layer.size])
+
+    def forward(
+        self, x: torch.Tensor, mem: List[torch.Tensor], mask: torch.Tensor
+    ):
+        new_mem = []
+        for i, layer in enumerate(self.layers):
+            new_mem.append(x.detach())
+            m = mem[i] if mem else None
+            x = layer(x=x, mem=m, mask=mask)
+        return self.norm(x), new_mem
